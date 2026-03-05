@@ -4,6 +4,7 @@ import { Map, Marker, InfoWindow, useMap } from '@vis.gl/react-google-maps';
 import { mockStores } from '../mockData';
 import { MarkerClusterer } from '@googlemaps/markerclusterer';
 import { MapPin, Navigation, ChevronRight, Zap } from 'lucide-react';
+import { useWindowSize } from '../hooks/useWindowSize';
 
 // Haversine distance in km
 function getDistanceKm(lat1, lon1, lat2, lon2) {
@@ -65,6 +66,7 @@ const MapContent = ({ userLocation, measureStore }) => {
 
 const StoreMap = ({ onUserLocation, measureStore, onMeasureClear, searchQuery, dealsOnly }) => {
     const navigate = useNavigate();
+    const { isMobile } = useWindowSize();
     const [userLocation, setUserLocation] = useState(null);
     const [isLocating, setIsLocating] = useState(false);
     const [locationError, setLocationError] = useState('');
@@ -73,21 +75,17 @@ const StoreMap = ({ onUserLocation, measureStore, onMeasureClear, searchQuery, d
     const [mapZoom, setMapZoom] = useState(14);
 
     const mapStyles = [
-        { "elementType": "geometry", "stylers": [{ "color": "#0D1B3E" }] },
-        { "elementType": "labels.text.stroke", "stylers": [{ "color": "#0D1B3E" }] },
-        { "elementType": "labels.text.fill", "stylers": [{ "color": "#A0AEC0" }] },
-        { "featureType": "administrative", "elementType": "geometry.stroke", "stylers": [{ "color": "#2D3748" }] },
-        { "featureType": "administrative.land_parcel", "elementType": "labels.text.fill", "stylers": [{ "color": "#4A5568" }] },
-        { "featureType": "landscape.man_made", "elementType": "geometry.stroke", "stylers": [{ "color": "#2D3748" }] },
-        { "featureType": "landscape.natural", "elementType": "geometry", "stylers": [{ "color": "#0A0F1D" }] },
-        { "featureType": "poi", "elementType": "geometry", "stylers": [{ "color": "#1A202C" }] },
+        { "elementType": "geometry", "stylers": [{ "color": "#F8F9FA" }] },
+        { "elementType": "labels.text.stroke", "stylers": [{ "color": "#F8F9FA" }] },
+        { "elementType": "labels.text.fill", "stylers": [{ "color": "#4A5568" }] },
+        { "featureType": "administrative", "elementType": "geometry.stroke", "stylers": [{ "color": "#E2E8F0" }] },
+        { "featureType": "landscape.natural", "elementType": "geometry", "stylers": [{ "color": "#EDF2F7" }] },
+        { "featureType": "poi", "elementType": "geometry", "stylers": [{ "color": "#E2E8F0" }] },
         { "featureType": "poi", "elementType": "labels.text.fill", "stylers": [{ "color": "#718096" }] },
-        { "featureType": "road", "elementType": "geometry", "stylers": [{ "color": "#1A202C" }] },
-        { "featureType": "road", "height": 1, "elementType": "geometry.stroke", "stylers": [{ "color": "#2D3748" }] },
-        { "featureType": "road.highway", "elementType": "geometry", "stylers": [{ "color": "#2D3748" }] },
-        { "featureType": "road.highway", "elementType": "geometry.stroke", "stylers": [{ "color": "#1A202C" }] },
-        { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#000814" }] },
-        { "featureType": "water", "elementType": "labels.text.fill", "stylers": [{ "color": "#2D3748" }] }
+        { "featureType": "road", "elementType": "geometry", "stylers": [{ "color": "#FFFFFF" }] },
+        { "featureType": "road", "elementType": "geometry.stroke", "stylers": [{ "color": "#CBD5E0" }] },
+        { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#C9E2FF" }] },
+        { "featureType": "water", "elementType": "labels.text.fill", "stylers": [{ "color": "#4A5568" }] }
     ];
 
     const map = useMap();
@@ -155,8 +153,27 @@ const StoreMap = ({ onUserLocation, measureStore, onMeasureClear, searchQuery, d
 
         const matchesDeals = !dealsOnly || store.discountPercent >= 50;
 
-        return matchesSearch && matchesDeals;
+        // 7-Day Expiry Logic
+        const now = new Date('2026-03-05T23:57:57'); // Simulate current time
+        const created = new Date(store.createdAt || '2026-01-01');
+        const diffDays = (now - created) / (1000 * 60 * 60 * 24);
+        const isActive = diffDays <= 7;
+
+        return matchesSearch && matchesDeals && isActive;
     });
+
+    const getMarkerColor = (percent) => {
+        if (percent >= 70) return '#E53935'; // Urgent Red
+        if (percent >= 50) return '#FF6D00'; // Deep Orange
+        return '#FFAB00'; // Light Orange / Gold
+    };
+
+    const isFresh = (date) => {
+        const now = new Date('2026-03-05T23:57:57');
+        const created = new Date(date || '2026-01-01');
+        const diffHours = (now - created) / (1000 * 60 * 60);
+        return diffHours <= 48;
+    };
 
     return (
         <div style={{ width: '100%', height: '100%', position: 'relative' }}>
@@ -171,26 +188,36 @@ const StoreMap = ({ onUserLocation, measureStore, onMeasureClear, searchQuery, d
                 disableDefaultUI={true}
                 styles={mapStyles}
                 style={{ width: '100%', height: '100%' }}
-                backgroundColor="#0A0F1D"
+                backgroundColor="#F8F9FA"
             >
                 <MapContent userLocation={userLocation} measureStore={measureStore} />
 
                 {filteredStores.map(store => {
-                    const isHotDeal = store.discountPercent >= 50;
+                    const markerColor = getMarkerColor(store.discountPercent);
+                    const size = store.discountPercent >= 70 ? 44 : store.discountPercent >= 50 ? 38 : 34;
+                    const fresh = isFresh(store.createdAt);
+
                     return (
                         <Marker
                             key={store.id}
                             ref={(m) => handleMarkerRef(store.id, m)}
                             position={{ lat: store.lat, lng: store.lng }}
                             onClick={() => setSelectedStore(store)}
-                            title={store.name}
+                            title={`${store.name} - ${store.discountPercent}% OFF ${fresh ? '(JUST UPDATED)' : ''}`}
                             icon={{
-                                path: window.google.maps.SymbolPath.CIRCLE,
-                                fillColor: isHotDeal ? '#E53935' : '#1A237E',
+                                path: 'M -18,-18 L 18,-18 L 18,12 L 4,12 L 0,18 L -4,12 L -18,12 Z',
+                                fillColor: markerColor,
                                 fillOpacity: 1,
-                                strokeWeight: isHotDeal ? 4 : 3,
-                                strokeColor: '#FFFFFF',
-                                scale: isHotDeal ? 10 : 7,
+                                strokeWeight: fresh ? 4 : 2,
+                                strokeColor: fresh ? '#4299E1' : '#FFFFFF', // Blue stroke for fresh deals
+                                scale: size / 36,
+                                labelOrigin: new window.google.maps.Point(0, -3),
+                            }}
+                            label={{
+                                text: `${store.discountPercent}%`,
+                                color: 'white',
+                                fontSize: `${size / 3}px`,
+                                fontWeight: '900',
                             }}
                         />
                     );
@@ -233,18 +260,31 @@ const StoreMap = ({ onUserLocation, measureStore, onMeasureClear, searchQuery, d
                                 />
                                 <div style={{
                                     position: 'absolute', top: '0.75rem', left: '0.75rem',
-                                    background: 'var(--grad-brand)', color: 'white',
+                                    background: getMarkerColor(selectedStore.discountPercent), color: 'white',
                                     padding: '0.4rem 0.8rem', fontSize: '0.7rem', fontWeight: 900,
                                     borderRadius: '8px', textTransform: 'uppercase', boxShadow: 'var(--shadow-red)'
                                 }}>
                                     {selectedStore.discountPercent}% OFF
                                 </div>
+
+                                {isFresh(selectedStore.createdAt) && (
+                                    <div style={{
+                                        position: 'absolute', top: '0.75rem', right: '0.75rem',
+                                        background: '#4299E1', color: 'white',
+                                        padding: '0.4rem 0.6rem', fontSize: '0.6rem', fontWeight: 900,
+                                        borderRadius: '8px', textTransform: 'uppercase',
+                                        display: 'flex', alignItems: 'center', gap: '0.3rem',
+                                        boxShadow: '0 4px 12px rgba(66, 153, 225, 0.3)'
+                                    }}>
+                                        <Zap size={10} fill="white" /> Just Updated
+                                    </div>
+                                )}
                             </div>
 
                             <div style={{ padding: '0 0.75rem 0.75rem' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
-                                    <Zap size={12} color="var(--brand-red)" fill="var(--brand-red)" />
-                                    <span style={{ fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: '0.15em', fontWeight: 850, color: 'var(--brand-red)' }}>
+                                    <Zap size={12} color={getMarkerColor(selectedStore.discountPercent)} fill={getMarkerColor(selectedStore.discountPercent)} />
+                                    <span style={{ fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: '0.15em', fontWeight: 850, color: getMarkerColor(selectedStore.discountPercent) }}>
                                         Verified Boutique
                                     </span>
                                 </div>
@@ -289,16 +329,29 @@ const StoreMap = ({ onUserLocation, measureStore, onMeasureClear, searchQuery, d
             </Map>
 
             {/* Controls */}
-            <div style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', zIndex: 10, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{
+                position: 'absolute',
+                top: isMobile ? 'auto' : '1.5rem',
+                bottom: isMobile ? '1.5rem' : 'auto',
+                right: isMobile ? '1.25rem' : '1.5rem',
+                zIndex: 10,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '1rem'
+            }}>
                 <button
                     onClick={handleFindMe}
                     title="Find my location"
                     style={{
-                        width: '48px', height: '48px',
-                        background: 'white', border: '1px solid rgba(26, 35, 126, 0.1)',
-                        borderRadius: '12px',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        boxShadow: 'var(--shadow-md)',
+                        width: isMobile ? '56px' : '48px', // Larger for mobile tap
+                        height: isMobile ? '56px' : '48px',
+                        background: 'white',
+                        border: '1px solid rgba(0, 0, 0, 0.05)',
+                        borderRadius: '16px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
                         cursor: 'pointer',
                         color: 'var(--brand-red)',
                         transition: 'all 0.2s ease'
@@ -306,7 +359,7 @@ const StoreMap = ({ onUserLocation, measureStore, onMeasureClear, searchQuery, d
                     onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
                     onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
                 >
-                    <Navigation size={20} fill="currentColor" />
+                    <Navigation size={isMobile ? 24 : 20} fill="currentColor" />
                 </button>
             </div>
 

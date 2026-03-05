@@ -21,6 +21,7 @@ export const mockStores = [
         reviews: 120,
         imageUrl: 'https://images.unsplash.com/photo-1555529771-835f59fc5efe?auto=format&fit=crop&q=80&w=600',
         tags: ['clearance', 'shirts', 'casual'],
+        createdAt: '2026-03-05T10:00:00Z',
     },
     {
         id: 2,
@@ -44,6 +45,7 @@ export const mockStores = [
         reviews: 85,
         imageUrl: 'https://images.unsplash.com/photo-1602810316693-3667c854239a?auto=format&fit=crop&q=80&w=600',
         tags: ['formal', 'panjabi', 'eid'],
+        createdAt: '2026-03-05T08:00:00Z',
     },
     {
         id: 3,
@@ -67,6 +69,7 @@ export const mockStores = [
         reviews: 210,
         imageUrl: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&q=80&w=600',
         tags: ['family', 'kids', 'bkash'],
+        createdAt: '2026-02-28T12:00:00Z', // Expired (>7 days)
     },
     {
         id: 4,
@@ -88,6 +91,7 @@ export const mockStores = [
         reviews: 156,
         imageUrl: 'https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?auto=format&fit=crop&q=80&w=600',
         tags: ['kurti', 'women', 'fashion'],
+        createdAt: '2026-02-24T10:00:00Z', // Expired (>7 days)
     },
     {
         id: 5,
@@ -110,6 +114,7 @@ export const mockStores = [
         reviews: 74,
         imageUrl: 'https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&q=80&w=600',
         tags: ['summer', 'kids', 'casual'],
+        createdAt: '2026-03-03T15:00:00Z', // Fresh (<48h)
     },
     {
         id: 6,
@@ -132,6 +137,7 @@ export const mockStores = [
         reviews: 198,
         imageUrl: 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&q=80&w=600',
         tags: ['sarees', 'ladies', 'grand sale'],
+        createdAt: '2026-02-22T09:00:00Z', // Expired (>11 days)
     },
     {
         id: 7,
