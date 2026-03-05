@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { mockStores } from '../mockData';
-import { MapPin, Star, Clock, Globe, Phone, ArrowLeft, Tag, Share2, Heart, ExternalLink, Gift, Copy, Check } from 'lucide-react';
+import { MapPin, Star, Clock, Globe, Phone, ArrowLeft, Tag, Share2, Heart, ExternalLink, Gift, Copy, Check, Flame, RefreshCw } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import { useWindowSize } from '../hooks/useWindowSize';
+import { useStores, isFresh, daysSinceUpdate } from '../hooks/useStores';
 
 const StoreDetail = () => {
     const { id } = useParams();
     const { toggleFavorite, isFavorite } = useAppContext();
     const { isMobile, isDesktop } = useWindowSize();
-    const store = mockStores.find(s => s.id === parseInt(id));
+    const { stores, isLoading } = useStores();
+    const store = stores.find(s => String(s.id) === String(id));
     const [copiedId, setCopiedId] = useState(null);
 
     const handleCopy = (coupon, id) => {

@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Map, Marker, InfoWindow, useMap } from '@vis.gl/react-google-maps';
-import { mockStores } from '../mockData';
 import { MarkerClusterer } from '@googlemaps/markerclusterer';
 import { MapPin, Navigation, ChevronRight, Zap } from 'lucide-react';
 import { useWindowSize } from '../hooks/useWindowSize';
+import { isFresh as checkFresh } from '../hooks/useStores';
 
 // Haversine distance in km
 function getDistanceKm(lat1, lon1, lat2, lon2) {
@@ -64,7 +64,7 @@ const MapContent = ({ userLocation, measureStore }) => {
     return null;
 };
 
-const StoreMap = ({ onUserLocation, measureStore, onMeasureClear, searchQuery, dealsOnly }) => {
+const StoreMap = ({ stores = [], onUserLocation, measureStore, onMeasureClear, searchQuery, dealsOnly }) => {
     const navigate = useNavigate();
     const { isMobile } = useWindowSize();
     const [userLocation, setUserLocation] = useState(null);
@@ -132,7 +132,7 @@ const StoreMap = ({ onUserLocation, measureStore, onMeasureClear, searchQuery, d
                 setMapZoom(15);
                 if (onUserLocation) {
                     const distances = {};
-                    mockStores.forEach(s => {
+                    stores.forEach(s => {
                         distances[s.id] = getDistanceKm(latitude, longitude, s.lat, s.lng);
                     });
                     onUserLocation({ ...loc, distances });
@@ -146,20 +146,14 @@ const StoreMap = ({ onUserLocation, measureStore, onMeasureClear, searchQuery, d
         );
     };
 
-    const filteredStores = mockStores.filter(store => {
+    const filteredStores = stores.filter(store => {
         const matchesSearch = !searchQuery ||
             store.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            store.tags.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
+            (store.tags || []).some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
 
         const matchesDeals = !dealsOnly || store.discountPercent >= 50;
 
-        // 7-Day Expiry Logic
-        const now = new Date('2026-03-05T23:57:57'); // Simulate current time
-        const created = new Date(store.createdAt || '2026-01-01');
-        const diffDays = (now - created) / (1000 * 60 * 60 * 24);
-        const isActive = diffDays <= 7;
-
-        return matchesSearch && matchesDeals && isActive;
+        return matchesSearch && matchesDeals;
     });
 
     const getMarkerColor = (percent) => {
@@ -168,12 +162,7 @@ const StoreMap = ({ onUserLocation, measureStore, onMeasureClear, searchQuery, d
         return '#FFAB00'; // Light Orange / Gold
     };
 
-    const isFresh = (date) => {
-        const now = new Date('2026-03-05T23:57:57');
-        const created = new Date(date || '2026-01-01');
-        const diffHours = (now - created) / (1000 * 60 * 60);
-        return diffHours <= 48;
-    };
+    const isFreshStore = (store) => checkFresh(store, 3);
 
     return (
         <div style={{ width: '100%', height: '100%', position: 'relative' }}>
@@ -195,7 +184,7 @@ const StoreMap = ({ onUserLocation, measureStore, onMeasureClear, searchQuery, d
                 {filteredStores.map(store => {
                     const markerColor = getMarkerColor(store.discountPercent);
                     const size = store.discountPercent >= 70 ? 44 : store.discountPercent >= 50 ? 38 : 34;
-                    const fresh = isFresh(store.createdAt);
+                    const fresh = isFreshStore(store);
 
                     return (
                         <Marker
@@ -267,7 +256,7 @@ const StoreMap = ({ onUserLocation, measureStore, onMeasureClear, searchQuery, d
                                     {selectedStore.discountPercent}% OFF
                                 </div>
 
-                                {isFresh(selectedStore.createdAt) && (
+                                {isFreshStore(selectedStore) && (
                                     <div style={{
                                         position: 'absolute', top: '0.75rem', right: '0.75rem',
                                         background: '#4299E1', color: 'white',

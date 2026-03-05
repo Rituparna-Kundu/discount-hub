@@ -3,10 +3,12 @@ import StoreMap from '../components/StoreMap';
 import { Search, MapPin, Compass, Store, Zap } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import { useWindowSize } from '../hooks/useWindowSize';
+import { useStores } from '../hooks/useStores';
 
 const MapPage = () => {
     const { userLocation, setUserLocation, searchQuery, setSearchQuery } = useAppContext();
     const { isMobile } = useWindowSize();
+    const { stores } = useStores();
     const [dealsOnly, setDealsOnly] = React.useState(false);
 
     return (
@@ -131,6 +133,7 @@ const MapPage = () => {
             </div>
 
             <StoreMap
+                stores={stores}
                 onUserLocation={(data) => setUserLocation(data)}
                 searchQuery={searchQuery}
                 dealsOnly={dealsOnly}

@@ -1,15 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Search, Tag, X, User, Heart, Bell, Settings, LogOut, MapPin, Home, Map as MapIcon, UserCircle } from 'lucide-react';
+import { Search, User, Heart, Bell, Settings, LogOut, Home, Map as MapIcon } from 'lucide-react';
 import LoginModal from './LoginModal';
 import AccountSettingsModal from './AccountSettingsModal';
-import { mockStores } from '../mockData';
 import { useAppContext } from '../context/AppContext';
 import { useWindowSize } from '../hooks/useWindowSize';
+import { useStores } from '../hooks/useStores';
 
 const Navbar = ({ user, onLogin, onLogout }) => {
     const { searchQuery, setSearchQuery, favorites } = useAppContext();
     const { isMobile } = useWindowSize();
+    const { stores } = useStores();
     const [isLoginOpen, setIsLoginOpen] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [searchResults, setSearchResults] = useState([]);
@@ -19,7 +20,6 @@ const Navbar = ({ user, onLogin, onLogout }) => {
     const location = useLocation();
     const profileMenuRef = useRef(null);
 
-    // Close profile menu if clicked outside
     useEffect(() => {
         const handleClickOutside = (event) => {
             if (profileMenuRef.current && !profileMenuRef.current.contains(event.target)) {
@@ -34,10 +34,10 @@ const Navbar = ({ user, onLogin, onLogout }) => {
         const q = e.target.value;
         setSearchQuery(q);
         if (q.trim().length > 0) {
-            const results = mockStores.filter(s =>
+            const results = stores.filter(s =>
                 s.name.toLowerCase().includes(q.toLowerCase()) ||
                 s.address.toLowerCase().includes(q.toLowerCase()) ||
-                s.tags.some(t => t.toLowerCase().includes(q.toLowerCase()))
+                (s.tags || []).some(t => t.toLowerCase().includes(q.toLowerCase()))
             );
             setSearchResults(results);
             setShowDropdown(true);
@@ -53,33 +53,40 @@ const Navbar = ({ user, onLogin, onLogout }) => {
         navigate(`/store/${store.id}`);
     };
 
+    // ── Shared nav items — identical on mobile and desktop ───────────────────
+    const NAV_ITEMS = [
+        { to: '/', icon: Home, label: 'Home' },
+        { to: '/map', icon: MapIcon, label: 'Map' },
+        { to: '/favorites', icon: Heart, label: 'Bag', badge: favorites.length },
+        {
+            action: user ? () => setIsSettingsOpen(true) : () => setIsLoginOpen(true),
+            icon: User,
+            label: user ? 'Account' : 'Login',
+        },
+    ];
+
+    const isActive = (path) => location.pathname === path;
+
     return (
         <>
-            {/* Desktop Navigation */}
+            {/* ═══════════════════════════════════════════════════════════════
+                DESKTOP NAV
+            ═══════════════════════════════════════════════════════════════ */}
             {!isMobile && (
                 <nav className="glass" style={{
-                    position: 'sticky',
-                    top: 0,
-                    zIndex: 100,
+                    position: 'sticky', top: 0, zIndex: 100,
                     padding: '1rem 0',
                     borderBottom: '1px solid rgba(26, 35, 126, 0.1)',
                 }}>
                     <div className="container flex items-center justify-between">
-                        <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
+
+                        {/* Logo */}
+                        <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0, textDecoration: 'none' }}>
                             <div style={{
-                                background: 'white',
-                                padding: '4px',
-                                borderRadius: '10px',
-                                boxShadow: 'var(--shadow-red)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center'
+                                background: 'white', padding: '4px', borderRadius: '10px',
+                                boxShadow: 'var(--shadow-red)', display: 'flex', alignItems: 'center', justifyContent: 'center'
                             }}>
-                                <img
-                                    src="/logo.png"
-                                    alt="Logo"
-                                    style={{ height: '36px', width: 'auto' }}
-                                />
+                                <img src="/logo.png" alt="Logo" style={{ height: '36px', width: 'auto' }} />
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column' }}>
                                 <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.2rem', lineHeight: 1 }}>
@@ -90,16 +97,13 @@ const Navbar = ({ user, onLogin, onLogout }) => {
                             </div>
                         </Link>
 
+                        {/* Search */}
                         <div style={{ position: 'relative', flex: 1, maxWidth: '440px', margin: '0 3rem' }}>
                             <div style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                background: 'var(--primary-light)',
-                                padding: '0.5rem 1.25rem',
-                                borderRadius: 'var(--radius-full)',
-                                border: '1px solid transparent',
-                                transition: 'all 0.3s ease'
-                            }} className="search-box">
+                                display: 'flex', alignItems: 'center',
+                                background: 'var(--primary-light)', padding: '0.5rem 1.25rem',
+                                borderRadius: 'var(--radius-full)', border: '1px solid transparent',
+                            }}>
                                 <Search size={16} color="var(--brand-blue)" />
                                 <input
                                     type="text"
@@ -107,14 +111,9 @@ const Navbar = ({ user, onLogin, onLogout }) => {
                                     value={searchQuery}
                                     onChange={handleSearch}
                                     style={{
-                                        width: '100%',
-                                        background: 'transparent',
-                                        border: 'none',
-                                        padding: '0 0.75rem',
-                                        fontSize: '0.85rem',
-                                        outline: 'none',
-                                        color: 'var(--text-main)',
-                                        fontWeight: 450
+                                        width: '100%', background: 'transparent', border: 'none',
+                                        padding: '0 0.75rem', fontSize: '0.85rem',
+                                        outline: 'none', color: 'var(--text-main)', fontWeight: 450
                                     }}
                                 />
                             </div>
@@ -150,117 +149,152 @@ const Navbar = ({ user, onLogin, onLogout }) => {
                             )}
                         </div>
 
+                        {/* Desktop nav items — same labels as mobile */}
                         <div style={{ display: 'flex', gap: '2rem', alignItems: 'center' }}>
-                            <Link to="/" style={{
-                                fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.15em', fontWeight: location.pathname === '/' ? 800 : 500,
-                                color: location.pathname === '/' ? 'var(--brand-red)' : 'var(--brand-navy)'
-                            }}>Index</Link>
-                            <Link to="/map" style={{
-                                fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.15em', fontWeight: location.pathname === '/map' ? 800 : 500,
-                                color: location.pathname === '/map' ? 'var(--brand-red)' : 'var(--brand-navy)'
-                            }}>Map</Link>
-                            <Link to="/notifications" style={{ position: 'relative', color: 'var(--brand-navy)' }}>
-                                <Bell size={20} strokeWidth={1.5} />
-                                <span style={{ position: 'absolute', top: -2, right: -2, width: '10px', height: '10px', background: 'var(--brand-red)', borderRadius: '50%', border: '2px solid white' }}></span>
-                            </Link>
-                            {user ? (
-                                <div style={{ position: 'relative' }} ref={profileMenuRef}>
-                                    <button onClick={() => setShowProfileMenu(!showProfileMenu)} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.4rem 1rem', borderRadius: 'var(--radius-full)', background: 'var(--primary-light)', border: '1px solid rgba(26, 35, 126, 0.1)' }}>
-                                        <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'var(--brand-navy)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 700 }}>
-                                            {user.name.charAt(0)}
+                            {NAV_ITEMS.map((item, idx) => {
+                                const Icon = item.icon;
+                                const active = item.to ? isActive(item.to) : false;
+
+                                // Account item with dropdown
+                                if (!item.to && user) {
+                                    return (
+                                        <div key={idx} style={{ position: 'relative' }} ref={profileMenuRef}>
+                                            <button
+                                                onClick={() => setShowProfileMenu(!showProfileMenu)}
+                                                style={{
+                                                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem',
+                                                    background: 'none', border: 'none', cursor: 'pointer',
+                                                    color: 'var(--brand-navy)'
+                                                }}
+                                            >
+                                                <div style={{
+                                                    width: '22px', height: '22px', borderRadius: '50%',
+                                                    background: 'var(--brand-navy)', color: 'white',
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                    fontSize: '0.7rem', fontWeight: 800
+                                                }}>
+                                                    {user.name.charAt(0)}
+                                                </div>
+                                                <span style={{ fontSize: '0.6rem', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Account</span>
+                                            </button>
+                                            {showProfileMenu && (
+                                                <div className="glass" style={{
+                                                    position: 'absolute', top: 'calc(100% + 12px)', right: 0,
+                                                    padding: '0.75rem 0', width: '200px',
+                                                    display: 'flex', flexDirection: 'column',
+                                                    zIndex: 110, borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-lg)'
+                                                }}>
+                                                    <button onClick={() => { setShowProfileMenu(false); navigate('/favorites'); }} style={{ padding: '0.8rem 1.5rem', textAlign: 'left', fontSize: '0.75rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--brand-navy)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                                                        <Heart size={16} /> Favorites
+                                                    </button>
+                                                    <button onClick={() => { setShowProfileMenu(false); setIsSettingsOpen(true); }} style={{ padding: '0.8rem 1.5rem', textAlign: 'left', fontSize: '0.75rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--brand-navy)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                                                        <Settings size={16} /> Settings
+                                                    </button>
+                                                    <div style={{ height: '1px', background: 'var(--border-color)', margin: '0.5rem 0' }} />
+                                                    <button onClick={onLogout} style={{ padding: '0.8rem 1.5rem', textAlign: 'left', fontSize: '0.75rem', fontWeight: 700, color: 'var(--brand-red)', display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'none', border: 'none', cursor: 'pointer' }}>
+                                                        <LogOut size={16} /> Logout
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
-                                        <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 700, color: 'var(--brand-navy)' }}>Portico</span>
-                                    </button>
-                                    {showProfileMenu && (
-                                        <div className="glass" style={{
-                                            position: 'absolute', top: '100%', right: 0,
-                                            padding: '0.75rem 0', width: '200px', display: 'flex', flexDirection: 'column', zIndex: 110, marginTop: '1rem',
-                                            borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-lg)'
-                                        }}>
-                                            <button onClick={() => { setShowProfileMenu(false); navigate('/favorites'); }} style={{ padding: '0.8rem 1.5rem', textAlign: 'left', fontSize: '0.75rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--brand-navy)' }}>
-                                                <Heart size={16} /> Favorites
-                                            </button>
-                                            <button onClick={() => { setShowProfileMenu(false); setIsSettingsOpen(true); }} style={{ padding: '0.8rem 1.5rem', textAlign: 'left', fontSize: '0.75rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--brand-navy)' }}>
-                                                <Settings size={16} /> Settings
-                                            </button>
-                                            <div style={{ height: '1px', background: 'var(--border-color)', margin: '0.5rem 0' }}></div>
-                                            <button onClick={onLogout} style={{ padding: '0.8rem 1.5rem', textAlign: 'left', fontSize: '0.75rem', fontWeight: 700, color: 'var(--brand-red)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                                <LogOut size={16} /> Logout
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                            ) : (
-                                <button onClick={() => setIsLoginOpen(true)} style={{
-                                    fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.2em', fontWeight: 800,
-                                    background: 'var(--grad-brand)', color: 'white', padding: '0.75rem 2rem',
-                                    borderRadius: 'var(--radius-full)', cursor: 'pointer', boxShadow: 'var(--shadow-red)'
-                                }}>Access</button>
-                            )}
+                                    );
+                                }
+
+                                const inner = (
+                                    <div style={{
+                                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem',
+                                        color: active ? 'var(--brand-red)' : 'var(--brand-navy)',
+                                        position: 'relative'
+                                    }}>
+                                        <Icon size={20} strokeWidth={active ? 2.5 : 1.5} />
+                                        <span style={{ fontSize: '0.6rem', fontWeight: active ? 800 : 500, textTransform: 'uppercase', letterSpacing: '0.1em' }}>{item.label}</span>
+                                        {item.badge > 0 && (
+                                            <span style={{
+                                                position: 'absolute', top: -4, right: -6,
+                                                background: 'var(--brand-red)', color: 'white',
+                                                fontSize: '0.5rem', width: '14px', height: '14px',
+                                                borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800
+                                            }}>{item.badge}</span>
+                                        )}
+                                    </div>
+                                );
+
+                                return item.to ? (
+                                    <Link key={idx} to={item.to} style={{ textDecoration: 'none' }}>{inner}</Link>
+                                ) : (
+                                    <button key={idx} onClick={item.action} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>{inner}</button>
+                                );
+                            })}
                         </div>
                     </div>
                 </nav>
             )}
 
-            {/* Mobile Navigation Header */}
+            {/* ═══════════════════════════════════════════════════════════════
+                MOBILE TOP HEADER
+            ═══════════════════════════════════════════════════════════════ */}
             {isMobile && (
                 <div className="glass" style={{
                     position: 'sticky', top: 0, zIndex: 100,
-                    padding: '0.75rem var(--container-padding)', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '0.75rem var(--container-padding)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                     borderBottom: '1px solid rgba(26, 35, 126, 0.05)'
                 }}>
-                    <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <div style={{ background: 'white', padding: '3px', borderRadius: '6px', boxShadow: '0 2px 8px rgba(229, 57, 53, 0.1)' }}>
+                    <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none' }}>
+                        <div style={{ background: 'white', padding: '3px', borderRadius: '6px', boxShadow: '0 2px 8px rgba(229,57,53,0.1)' }}>
                             <img src="/logo.png" alt="Logo" style={{ height: '26px', width: 'auto' }} />
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.1rem' }}>
-                            <span style={{ fontFamily: 'var(--font-logo-en)', fontSize: '1.2rem', fontWeight: 800, color: 'var(--brand-navy)' }}>D</span>
-                            <span style={{ fontFamily: 'var(--font-logo-bn)', fontSize: '1.3rem', fontWeight: 700, color: 'var(--brand-red)' }}>খুঁজি</span>
+                        {/* Full name — same as desktop */}
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.15rem' }}>
+                            <span style={{ fontFamily: 'var(--font-logo-en)', fontSize: '1.05rem', fontWeight: 900, color: 'var(--brand-navy)', letterSpacing: '-0.02em' }}>Discount</span>
+                            <span style={{ fontFamily: 'var(--font-logo-bn)', fontSize: '1.15rem', fontWeight: 700, color: 'var(--brand-red)' }}>খুঁজি</span>
                         </div>
                     </Link>
                     <Link to="/notifications" style={{ position: 'relative', color: 'var(--brand-navy)' }}>
                         <Bell size={22} strokeWidth={1.5} />
-                        <span style={{ position: 'absolute', top: 0, right: 0, width: '8px', height: '8px', background: 'var(--brand-red)', borderRadius: '50%', border: '1.5px solid white' }}></span>
+                        <span style={{ position: 'absolute', top: 0, right: 0, width: '8px', height: '8px', background: 'var(--brand-red)', borderRadius: '50%', border: '1.5px solid white' }} />
                     </Link>
                 </div>
             )}
 
-            {/* Mobile Bottom Bar (Reimagined with Glass & Brand Colors) */}
+            {/* ═══════════════════════════════════════════════════════════════
+                MOBILE BOTTOM BAR
+            ═══════════════════════════════════════════════════════════════ */}
             {isMobile && (
                 <div className="glass" style={{
-                    position: 'fixed', bottom: '1.5rem', left: 'var(--container-padding)', right: 'var(--container-padding)',
+                    position: 'fixed', bottom: '1.5rem',
+                    left: 'var(--container-padding)', right: 'var(--container-padding)',
                     height: '4.5rem', borderRadius: 'var(--radius-full)',
                     display: 'flex', alignItems: 'center', justifyContent: 'space-around',
-                    padding: '0 1rem', zIndex: 1000, boxShadow: 'var(--shadow-lg)',
-                    border: '1px solid rgba(255, 255, 255, 0.4)'
+                    padding: '0 1rem', zIndex: 1000,
+                    boxShadow: 'var(--shadow-lg)', border: '1px solid rgba(255,255,255,0.4)'
                 }}>
-                    {[
-                        { to: '/', icon: Home, label: 'Home' },
-                        { to: '/map', icon: MapIcon, label: 'Explore' },
-                        { to: '/favorites', icon: Heart, label: 'Bag', badge: favorites.length },
-                        { action: user ? () => setIsSettingsOpen(true) : () => setIsLoginOpen(true), icon: User, label: user ? 'Account' : 'Login' }
-                    ].map((item, idx) => {
+                    {NAV_ITEMS.map((item, idx) => {
                         const Icon = item.icon;
-                        const isActive = location.pathname === item.to;
-                        const content = (
-                            <div key={idx} style={{
+                        const active = item.to ? isActive(item.to) : false;
+                        const inner = (
+                            <div style={{
                                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem',
-                                color: isActive ? 'var(--brand-red)' : 'var(--brand-navy)',
-                                transition: 'all 0.3s ease',
+                                color: active ? 'var(--brand-red)' : 'var(--brand-navy)',
                                 position: 'relative'
                             }}>
-                                <Icon size={20} strokeWidth={isActive ? 2.5 : 1.5} />
-                                <span style={{ fontSize: '0.6rem', fontWeight: isActive ? 800 : 500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{item.label}</span>
+                                <Icon size={20} strokeWidth={active ? 2.5 : 1.5} />
+                                <span style={{ fontSize: '0.6rem', fontWeight: active ? 800 : 500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{item.label}</span>
                                 {item.badge > 0 && (
-                                    <span style={{ position: 'absolute', top: -4, right: -4, background: 'var(--brand-red)', color: 'white', fontSize: '0.5rem', width: '14px', height: '14px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>{item.badge}</span>
+                                    <span style={{
+                                        position: 'absolute', top: -4, right: -4,
+                                        background: 'var(--brand-red)', color: 'white',
+                                        fontSize: '0.5rem', width: '14px', height: '14px',
+                                        borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800
+                                    }}>{item.badge}</span>
                                 )}
                             </div>
                         );
 
                         return item.to ? (
-                            <Link key={idx} to={item.to} style={{ textDecoration: 'none' }}>{content}</Link>
+                            <Link key={idx} to={item.to} style={{ textDecoration: 'none' }}>{inner}</Link>
                         ) : (
-                            <button key={idx} onClick={item.action} style={{ background: 'none', border: 'none' }}>{content}</button>
+                            <button key={idx} onClick={item.action} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>{inner}</button>
                         );
                     })}
                 </div>
