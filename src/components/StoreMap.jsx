@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Map, Marker, InfoWindow, useMap } from '@vis.gl/react-google-maps';
 import { mockStores } from '../mockData';
+import { MarkerClusterer } from '@googlemaps/markerclusterer';
+import { MapPin, Navigation, ChevronRight, Zap } from 'lucide-react';
 
 // Haversine distance in km
 function getDistanceKm(lat1, lon1, lat2, lon2) {
@@ -12,19 +14,16 @@ function getDistanceKm(lat1, lon1, lat2, lon2) {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// Inner component that has access to the map instance (via useMap)
 const MapContent = ({ userLocation, measureStore }) => {
     const map = useMap();
     const polylineRef = useRef(null);
 
     useEffect(() => {
-        // Clear existing polyline
         if (polylineRef.current) {
             polylineRef.current.setMap(null);
             polylineRef.current = null;
         }
 
-        // Draw new polyline if both user location and measure store are set
         if (map && userLocation && measureStore) {
             const line = new window.google.maps.Polyline({
                 path: [
@@ -32,33 +31,31 @@ const MapContent = ({ userLocation, measureStore }) => {
                     { lat: measureStore.lat, lng: measureStore.lng },
                 ],
                 geodesic: true,
-                strokeColor: '#2563eb',
-                strokeOpacity: 0,
+                strokeColor: '#E53935', // Brand Red
+                strokeOpacity: 0.8,
+                strokeWeight: 3,
                 icons: [{
                     icon: {
                         path: 'M 0,-1 0,1',
                         strokeOpacity: 1,
-                        strokeColor: '#2563eb',
-                        scale: 4,
+                        scale: 3,
                     },
                     offset: '0',
-                    repeat: '20px',
+                    repeat: '15px',
                 }],
             });
             line.setMap(map);
             polylineRef.current = line;
 
-            // Fit map to show both points
             const bounds = new window.google.maps.LatLngBounds();
             bounds.extend({ lat: userLocation.lat, lng: userLocation.lng });
             bounds.extend({ lat: measureStore.lat, lng: measureStore.lng });
-            map.fitBounds(bounds, 80);
+            map.fitBounds(bounds, 100);
         }
 
         return () => {
             if (polylineRef.current) {
                 polylineRef.current.setMap(null);
-                polylineRef.current = null;
             }
         };
     }, [map, userLocation, measureStore]);
@@ -66,59 +63,100 @@ const MapContent = ({ userLocation, measureStore }) => {
     return null;
 };
 
-const StoreMap = ({ onUserLocation, measureStore, onMeasureClear }) => {
+const StoreMap = ({ onUserLocation, measureStore, onMeasureClear, searchQuery, dealsOnly }) => {
     const navigate = useNavigate();
-
     const [userLocation, setUserLocation] = useState(null);
-    const [userLocationLabel, setUserLocationLabel] = useState('');
     const [isLocating, setIsLocating] = useState(false);
     const [locationError, setLocationError] = useState('');
     const [selectedStore, setSelectedStore] = useState(null);
-
     const [mapCenter, setMapCenter] = useState({ lat: 24.7471, lng: 90.4203 });
     const [mapZoom, setMapZoom] = useState(14);
 
-    const placeUserMarker = (lat, lng, label) => {
-        setUserLocation({ lat, lng });
-        setUserLocationLabel(label || 'Your Location');
-        setMapCenter({ lat, lng });
-        setMapZoom(15);
+    const mapStyles = [
+        { "elementType": "geometry", "stylers": [{ "color": "#0D1B3E" }] },
+        { "elementType": "labels.text.stroke", "stylers": [{ "color": "#0D1B3E" }] },
+        { "elementType": "labels.text.fill", "stylers": [{ "color": "#A0AEC0" }] },
+        { "featureType": "administrative", "elementType": "geometry.stroke", "stylers": [{ "color": "#2D3748" }] },
+        { "featureType": "administrative.land_parcel", "elementType": "labels.text.fill", "stylers": [{ "color": "#4A5568" }] },
+        { "featureType": "landscape.man_made", "elementType": "geometry.stroke", "stylers": [{ "color": "#2D3748" }] },
+        { "featureType": "landscape.natural", "elementType": "geometry", "stylers": [{ "color": "#0A0F1D" }] },
+        { "featureType": "poi", "elementType": "geometry", "stylers": [{ "color": "#1A202C" }] },
+        { "featureType": "poi", "elementType": "labels.text.fill", "stylers": [{ "color": "#718096" }] },
+        { "featureType": "road", "elementType": "geometry", "stylers": [{ "color": "#1A202C" }] },
+        { "featureType": "road", "height": 1, "elementType": "geometry.stroke", "stylers": [{ "color": "#2D3748" }] },
+        { "featureType": "road.highway", "elementType": "geometry", "stylers": [{ "color": "#2D3748" }] },
+        { "featureType": "road.highway", "elementType": "geometry.stroke", "stylers": [{ "color": "#1A202C" }] },
+        { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#000814" }] },
+        { "featureType": "water", "elementType": "labels.text.fill", "stylers": [{ "color": "#2D3748" }] }
+    ];
 
-        if (onUserLocation) {
-            const distances = {};
-            mockStores.forEach(store => {
-                distances[store.id] = getDistanceKm(lat, lng, store.lat, store.lng);
-            });
-            onUserLocation({ lat, lng, distances });
+    const map = useMap();
+    const clusterer = useRef(null);
+    const [markers, setMarkers] = useState({});
+
+    useEffect(() => {
+        if (!map) return;
+        if (!clusterer.current) {
+            clusterer.current = new MarkerClusterer({ map });
         }
+    }, [map]);
+
+    useEffect(() => {
+        if (clusterer.current) {
+            clusterer.current.clearMarkers();
+            clusterer.current.addMarkers(Object.values(markers));
+        }
+    }, [markers]);
+
+    const handleMarkerRef = (id, marker) => {
+        if (marker && markers[id]) return;
+        if (!marker && !markers[id]) return;
+        setMarkers((prev) => {
+            if (marker) return { ...prev, [id]: marker };
+            const newMarkers = { ...prev };
+            delete newMarkers[id];
+            return newMarkers;
+        });
     };
 
     const handleFindMe = () => {
         if (!navigator.geolocation) {
-            setLocationError('Geolocation not supported by your browser.');
+            setLocationError('Geolocation not supported');
             return;
         }
         setIsLocating(true);
-        setLocationError('');
-
         navigator.geolocation.getCurrentPosition(
             (pos) => {
                 const { latitude, longitude } = pos.coords;
-                placeUserMarker(latitude, longitude, 'You are here');
+                const loc = { lat: latitude, lng: longitude };
+                setUserLocation(loc);
+                setMapCenter(loc);
+                setMapZoom(15);
+                if (onUserLocation) {
+                    const distances = {};
+                    mockStores.forEach(s => {
+                        distances[s.id] = getDistanceKm(latitude, longitude, s.lat, s.lng);
+                    });
+                    onUserLocation({ ...loc, distances });
+                }
                 setIsLocating(false);
             },
             () => {
-                setLocationError('Could not get your location. Please allow location access.');
+                setLocationError('Location access denied');
                 setIsLocating(false);
-            },
-            { enableHighAccuracy: true, timeout: 10000 }
+            }
         );
     };
 
-    // Distance for the measurement banner
-    const measureDist = (measureStore && userLocation)
-        ? getDistanceKm(userLocation.lat, userLocation.lng, measureStore.lat, measureStore.lng)
-        : null;
+    const filteredStores = mockStores.filter(store => {
+        const matchesSearch = !searchQuery ||
+            store.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            store.tags.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
+
+        const matchesDeals = !dealsOnly || store.discountPercent >= 50;
+
+        return matchesSearch && matchesDeals;
+    });
 
     return (
         <div style={{ width: '100%', height: '100%', position: 'relative' }}>
@@ -131,195 +169,155 @@ const StoreMap = ({ onUserLocation, measureStore, onMeasureClear }) => {
                 }}
                 gestureHandling={'greedy'}
                 disableDefaultUI={true}
+                styles={mapStyles}
                 style={{ width: '100%', height: '100%' }}
+                backgroundColor="#0A0F1D"
             >
-                {/* Polyline renderer (needs useMap) */}
-                <MapContent userLocation={userLocation} measureStore={measureStore} onMeasureClear={onMeasureClear} />
+                <MapContent userLocation={userLocation} measureStore={measureStore} />
 
-                {/* Store Markers */}
-                {mockStores.map(store => (
-                    <Marker
-                        key={store.id}
-                        position={{ lat: store.lat, lng: store.lng }}
-                        onClick={() => setSelectedStore(store)}
-                        title={store.name}
-                        label={{
-                            text: '🏷️ ' + store.topDiscount,
-                            className: 'google-map-marker-label',
-                            color: '#ffffff',
-                            fontWeight: 'bold',
-                        }}
-                    />
-                ))}
+                {filteredStores.map(store => {
+                    const isHotDeal = store.discountPercent >= 50;
+                    return (
+                        <Marker
+                            key={store.id}
+                            ref={(m) => handleMarkerRef(store.id, m)}
+                            position={{ lat: store.lat, lng: store.lng }}
+                            onClick={() => setSelectedStore(store)}
+                            title={store.name}
+                            icon={{
+                                path: window.google.maps.SymbolPath.CIRCLE,
+                                fillColor: isHotDeal ? '#E53935' : '#1A237E',
+                                fillOpacity: 1,
+                                strokeWeight: isHotDeal ? 4 : 3,
+                                strokeColor: '#FFFFFF',
+                                scale: isHotDeal ? 10 : 7,
+                            }}
+                        />
+                    );
+                })}
 
-                {/* User Location Marker - Blue Dot */}
                 {userLocation && (
                     <Marker
                         position={userLocation}
                         zIndex={100}
-                        title={userLocationLabel}
                         icon={{
-                            url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
-                                <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
-                                    <circle cx="20" cy="20" r="18" fill="rgba(37,99,235,0.2)" />
-                                    <circle cx="20" cy="20" r="10" fill="#2563eb" stroke="white" stroke-width="2.5" />
-                                </svg>
-                            `)}`,
-                            scaledSize: { width: 40, height: 40 },
-                            anchor: { x: 20, y: 20 },
-                        }}
-                        label={{
-                            text: userLocationLabel,
-                            className: 'google-map-user-marker-label',
-                            color: '#1e3a8a',
-                            fontWeight: 'bold',
-                            fontSize: '11px',
+                            path: window.google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+                            fillColor: '#4299E1', // Vibrant Blue for User
+                            fillOpacity: 1,
+                            strokeWeight: 2,
+                            strokeColor: '#FFFFFF',
+                            scale: 6,
                         }}
                     />
                 )}
 
-                {/* Store Info Popup */}
                 {selectedStore && (
                     <InfoWindow
                         position={{ lat: selectedStore.lat, lng: selectedStore.lng }}
                         onCloseClick={() => setSelectedStore(null)}
                     >
-                        <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", minWidth: '200px', padding: '4px' }}>
-                            <img
-                                src={selectedStore.imageUrl}
-                                alt={selectedStore.name}
-                                style={{ width: '100%', height: '90px', objectFit: 'cover', borderRadius: '8px', marginBottom: '8px' }}
-                            />
-                            <strong style={{ fontSize: '14px', color: '#111827' }}>{selectedStore.name}</strong>
-                            <div style={{ color: '#6b7280', fontSize: '12px', marginTop: '3px' }}>
-                                📍 {selectedStore.address.split(',')[0]}
-                            </div>
-                            <div style={{ marginTop: '6px', background: '#fdf2f8', color: '#ec4899', padding: '4px 8px', borderRadius: '12px', fontWeight: 700, fontSize: '12px', display: 'inline-block' }}>
-                                {selectedStore.topDiscount}
+                        <div style={{
+                            padding: '0.25rem',
+                            maxWidth: '280px',
+                            background: 'white',
+                            color: 'var(--brand-navy)',
+                            fontFamily: 'var(--font-body)',
+                            borderRadius: '16px',
+                            overflow: 'hidden'
+                        }}>
+                            <div style={{ position: 'relative', height: '140px', borderRadius: '12px', overflow: 'hidden', marginBottom: '1rem' }}>
+                                <img
+                                    src={selectedStore.imageUrl}
+                                    alt={selectedStore.name}
+                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                />
+                                <div style={{
+                                    position: 'absolute', top: '0.75rem', left: '0.75rem',
+                                    background: 'var(--grad-brand)', color: 'white',
+                                    padding: '0.4rem 0.8rem', fontSize: '0.7rem', fontWeight: 900,
+                                    borderRadius: '8px', textTransform: 'uppercase', boxShadow: 'var(--shadow-red)'
+                                }}>
+                                    {selectedStore.discountPercent}% OFF
+                                </div>
                             </div>
 
-                            {/* Distance from user */}
-                            {userLocation && (() => {
-                                const dist = getDistanceKm(userLocation.lat, userLocation.lng, selectedStore.lat, selectedStore.lng);
-                                const distStr = dist < 1
-                                    ? `${Math.round(dist * 1000)} m away`
-                                    : `${dist.toFixed(1)} km away`;
-                                return (
-                                    <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px', background: '#eff6ff', borderRadius: '10px', padding: '5px 10px' }}>
-                                        <span style={{ fontSize: '14px' }}>📏</span>
-                                        <span style={{ fontSize: '12px', fontWeight: 700, color: '#2563eb' }}>{distStr}</span>
-                                        <span style={{ fontSize: '11px', color: '#3b82f6' }}>from you</span>
-                                    </div>
-                                );
-                            })()}
+                            <div style={{ padding: '0 0.75rem 0.75rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
+                                    <Zap size={12} color="var(--brand-red)" fill="var(--brand-red)" />
+                                    <span style={{ fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: '0.15em', fontWeight: 850, color: 'var(--brand-red)' }}>
+                                        Verified Boutique
+                                    </span>
+                                </div>
 
-                            {/* Action Buttons */}
-                            <div style={{ marginTop: '8px', display: 'flex', gap: '6px' }}>
+                                <h3 style={{ fontSize: '1.4rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '0.25rem', lineHeight: 1, color: 'var(--brand-navy)' }}>
+                                    {selectedStore.name}
+                                </h3>
+                                <p style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginBottom: '1.25rem', fontWeight: 500 }}>
+                                    {selectedStore.address.split(',')[0]}
+                                </p>
+
                                 <button
                                     onClick={() => navigate(`/store/${selectedStore.id}`)}
                                     style={{
-                                        flex: 1, textAlign: 'center',
-                                        background: 'linear-gradient(135deg,#6366f1,#4f46e5)',
-                                        color: 'white', padding: '7px', borderRadius: '20px',
-                                        fontWeight: 700, fontSize: '12px', border: 'none', cursor: 'pointer'
+                                        width: '100%',
+                                        padding: '0.9rem',
+                                        background: 'var(--brand-navy)',
+                                        color: 'white',
+                                        border: 'none',
+                                        fontSize: '0.75rem',
+                                        textTransform: 'uppercase',
+                                        letterSpacing: '0.15em',
+                                        fontWeight: 850,
+                                        cursor: 'pointer',
+                                        borderRadius: '12px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '0.5rem',
+                                        boxShadow: 'var(--shadow-navy)',
+                                        transition: 'all 0.2s ease'
                                     }}
+                                    onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+                                    onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
                                 >
-                                    View Details →
+                                    Explore Deals <ChevronRight size={16} />
                                 </button>
-                                <a
-                                    href={`https://www.google.com/maps/dir/${userLocation ? `${userLocation.lat},${userLocation.lng}` : ''}/${selectedStore.lat},${selectedStore.lng}`}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    style={{
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        background: '#10b981', color: 'white', padding: '7px 10px', borderRadius: '20px',
-                                        fontWeight: 700, fontSize: '12px', textDecoration: 'none', whiteSpace: 'nowrap'
-                                    }}
-                                >
-                                    🗺️ Go
-                                </a>
                             </div>
                         </div>
                     </InfoWindow>
                 )}
             </Map>
 
-            {/* Distance Measurement Banner */}
-            {measureStore && (
-                <div style={{
-                    position: 'absolute', bottom: '1.5rem', left: '50%', transform: 'translateX(-50%)',
-                    background: 'white', borderRadius: '16px',
-                    padding: '0.75rem 1.25rem', boxShadow: '0 4px 20px rgba(0,0,0,0.18)',
-                    zIndex: 1000, display: 'flex', alignItems: 'center', gap: '0.75rem',
-                    border: '2px solid #2563eb', minWidth: '240px',
-                }}>
-                    <span style={{ fontSize: '20px' }}>📏</span>
-                    <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 700, fontSize: '0.875rem', color: '#111827' }}>{measureStore.name}</div>
-                        {measureDist !== null ? (
-                            <div style={{ fontSize: '0.8rem', color: '#2563eb', fontWeight: 700 }}>
-                                {measureDist < 1
-                                    ? `${Math.round(measureDist * 1000)} m from you`
-                                    : `${measureDist.toFixed(2)} km from you`}
-                            </div>
-                        ) : (
-                            <div style={{ fontSize: '0.78rem', color: '#f59e0b', fontWeight: 600 }}>
-                                📍 Press the Find Me button to see your distance
-                            </div>
-                        )}
-                    </div>
-                    <a
-                        href={`https://www.google.com/maps/dir/${userLocation ? `${userLocation.lat},${userLocation.lng}` : ''}/${measureStore.lat},${measureStore.lng}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        style={{
-                            background: '#10b981', color: 'white', padding: '6px 12px', borderRadius: '20px',
-                            fontWeight: 700, fontSize: '12px', textDecoration: 'none', whiteSpace: 'nowrap'
-                        }}
-                    >
-                        🗺️ Go
-                    </a>
-                    <button
-                        onClick={onMeasureClear}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: '18px', padding: '0 4px' }}
-                        title="Clear"
-                    >✕</button>
-                </div>
-            )}
-
-            {/* Controls Overlay - Find Me Button */}
-            <div style={{
-                position: 'absolute', top: '12px', right: '12px',
-                zIndex: 1000, display: 'flex', flexDirection: 'column', gap: '8px',
-            }}>
+            {/* Controls */}
+            <div style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', zIndex: 10, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <button
                     onClick={handleFindMe}
-                    disabled={isLocating}
-                    title="Show my location"
+                    title="Find my location"
                     style={{
-                        background: 'white', border: 'none', borderRadius: '12px',
-                        width: '44px', height: '44px', flexShrink: 0,
-                        boxShadow: '0 4px 16px rgba(0,0,0,0.2)', cursor: 'pointer',
+                        width: '48px', height: '48px',
+                        background: 'white', border: '1px solid rgba(26, 35, 126, 0.1)',
+                        borderRadius: '12px',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: '20px', opacity: isLocating ? 0.6 : 1,
-                        transition: 'all 0.2s',
+                        boxShadow: 'var(--shadow-md)',
+                        cursor: 'pointer',
+                        color: 'var(--brand-red)',
+                        transition: 'all 0.2s ease'
                     }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#eff6ff'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'white'}
+                    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+                    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
                 >
-                    {isLocating ? '⏳' : '📍'}
+                    <Navigation size={20} fill="currentColor" />
                 </button>
             </div>
 
-            {/* Location error toast */}
             {locationError && (
                 <div style={{
-                    position: 'absolute', bottom: '1.5rem', left: '50%', transform: 'translateX(-50%)',
-                    background: '#fef2f2', color: '#dc2626', borderRadius: '10px',
-                    padding: '0.6rem 1.2rem', boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                    fontSize: '0.8rem', fontWeight: 600, zIndex: 1000, whiteSpace: 'nowrap',
+                    position: 'absolute', bottom: '2rem', left: '50%', transform: 'translateX(-50%)',
+                    background: 'var(--brand-navy)', color: 'white', padding: '0.75rem 1.5rem',
+                    fontSize: '0.75rem', borderRadius: 'var(--radius-md)', fontWeight: 700,
+                    boxShadow: 'var(--shadow-lg)', border: '1px solid rgba(255,255,255,0.1)'
                 }}>
-                    ⚠️ {locationError}
+                    {locationError}
                 </div>
             )}
         </div>

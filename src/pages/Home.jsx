@@ -1,295 +1,391 @@
-import React, { useState, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { mockStores } from '../mockData';
-import { MapPin, ChevronRight, Star, SlidersHorizontal, Tag } from 'lucide-react';
+import { MapPin, Search, Star, Map as MapIcon, Grid, Tag, Heart, Sparkles, Filter } from 'lucide-react';
 import StoreMap from '../components/StoreMap';
+import { useAppContext } from '../context/AppContext';
+import { useWindowSize } from '../hooks/useWindowSize';
 
 const CATEGORIES = [
-    { id: 'All', label: 'All', icon: '✨' },
-    { id: 'Men', label: 'Men', icon: '👔' },
-    { id: 'Women', label: 'Women', icon: '👗' },
-    { id: 'Kids', label: 'Kids', icon: '🧒' },
-    { id: 'Couple', label: 'Couple', icon: '💑' },
-];
-
-const SORT_OPTIONS = [
-    { label: 'Most Discounted', value: 'discount' },
-    { label: 'Top Rated', value: 'rating' },
-    { label: 'Most Reviews', value: 'reviews' },
-    { label: 'Nearest First', value: 'distance' },
+    { id: 'All', label: 'All', emoji: '✨' },
+    { id: 'Men', label: 'Men', emoji: '🕺' },
+    { id: 'Women', label: 'Women', emoji: '👸' },
+    { id: 'Kids', label: 'Kids', emoji: '🎈' },
+    { id: 'Couple', label: 'Couple', emoji: '👩‍❤️‍👨' },
 ];
 
 const Home = () => {
-    const [activeCategory, setActiveCategory] = useState('All');
+    const {
+        searchQuery,
+        setSearchQuery,
+        activeCategory,
+        setActiveCategory,
+        toggleFavorite,
+        isFavorite,
+        userLocation,
+        setUserLocation
+    } = useAppContext();
+    const { isMobile } = useWindowSize();
     const [sortBy, setSortBy] = useState('discount');
-    const [showFilters, setShowFilters] = useState(false);
-    const [userLocation, setUserLocation] = useState(null);
-    const [measureStore, setMeasureStore] = useState(null);
-
-    const handleUserLocation = (locationData) => {
-        setUserLocation(locationData);
-        setSortBy('distance');
-    };
-
-    const handleMeasure = (e, store) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setMeasureStore(prev => prev?.id === store.id ? null : store);
-    };
+    const [viewMode, setViewMode] = useState('list'); // 'list' or 'map'
+    const navigate = useNavigate();
 
     const filteredStores = useMemo(() => {
         let results = mockStores;
+
         if (activeCategory !== 'All') {
             results = results.filter(s => s.categories.includes(activeCategory));
         }
+
+        if (searchQuery.trim()) {
+            const q = searchQuery.toLowerCase();
+            results = results.filter(s =>
+                s.name.toLowerCase().includes(q) ||
+                s.tags.some(t => t.toLowerCase().includes(q))
+            );
+        }
+
         return [...results].sort((a, b) => {
             if (sortBy === 'distance' && userLocation?.distances) {
                 return (userLocation.distances[a.id] || 99) - (userLocation.distances[b.id] || 99);
             }
             if (sortBy === 'discount') return b.discountPercent - a.discountPercent;
             if (sortBy === 'rating') return b.rating - a.rating;
-            if (sortBy === 'reviews') return b.reviews - a.reviews;
             return 0;
         });
-    }, [activeCategory, sortBy, userLocation]);
+    }, [activeCategory, sortBy, userLocation, searchQuery]);
 
-    const totalCoupons = mockStores.reduce((sum, s) => sum + s.activeDiscounts.length, 0);
+    const totalDeals = mockStores.reduce((sum, s) => sum + s.activeDiscounts.length, 0);
 
     return (
-        <div style={{ display: 'flex', height: 'calc(100vh - 65px)' }}>
+        <div style={{ background: 'var(--bg-color)', minHeight: '100vh', color: 'var(--text-main)' }}>
 
-            {/* ===== Sidebar ===== */}
-            <div style={{
-                width: '440px', flexShrink: 0, display: 'flex', flexDirection: 'column',
-                background: 'var(--sidebar-bg)',
-                borderRight: '1px solid var(--border-color)',
-                overflowY: 'auto',
-                boxShadow: '2px 0 12px rgba(0,0,0,0.03)',
-                zIndex: 10,
+            {/* ── Vibrant Hero Section ── */}
+            <section style={{
+                padding: isMobile ? '6rem 0 4rem' : '10rem 0 8rem',
+                background: 'var(--grad-navy)',
+                color: 'white',
+                position: 'relative',
+                overflow: 'hidden',
+                textAlign: 'center'
             }}>
-
-                {/* Hero Banner - RED / ORANGE Theme */}
+                {/* Decorative background element */}
                 <div style={{
-                    background: 'linear-gradient(135deg, #E53935 0%, #D32F2F 50%, #C62828 100%)',
-                    padding: '2rem 1.5rem',
-                    color: 'white',
-                    position: 'relative',
-                    overflow: 'hidden',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'center',
-                    minHeight: '220px',
-                }}>
-                    {/* Abstract Shapes */}
-                    <div style={{ position: 'absolute', top: '-30px', right: '-20px', width: '150px', height: '150px', borderRadius: '50%', background: 'linear-gradient(135deg, #FF6D00, #FF8F00)', opacity: 0.9, mixBlendMode: 'screen', pointerEvents: 'none' }} />
-                    <div style={{ position: 'absolute', bottom: '-40px', left: '-10px', width: '120px', height: '120px', borderRadius: '50%', background: 'rgba(255,109,0,0.4)', mixBlendMode: 'screen', pointerEvents: 'none' }} />
+                    position: 'absolute', top: '-10%', right: '-5%', width: '40%', height: '120%',
+                    background: 'var(--brand-red)', opacity: 0.1, filter: 'blur(100px)', transform: 'rotate(-20deg)'
+                }}></div>
 
-                    <div style={{ position: 'relative', zIndex: 1, marginTop: '-0.5rem' }}>
+                <div className="container animate-fade-in" style={{ position: 'relative', zIndex: 1 }}>
+                    <div style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '0.75rem',
+                        background: 'rgba(255,255,255,0.1)', padding: '0.5rem 1.25rem',
+                        borderRadius: 'var(--radius-full)', marginBottom: '2.5rem',
+                        backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.1)'
+                    }}>
+                        <Sparkles size={14} color="var(--brand-red)" fill="var(--brand-red)" />
+                        <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.2rem', fontWeight: 700 }}>Exclusive Collection 2026</span>
+                    </div>
 
-                        <h1 style={{ fontSize: '1.8rem', fontWeight: 800, color: 'white', lineHeight: 1.1, marginBottom: '0.4rem', fontFamily: 'var(--font-heading)', letterSpacing: '-0.02em' }}>
-                            Discount dash <br /> <span style={{ color: '#FFD54F' }}>Near You.</span>
-                        </h1>
+                    <h1 style={{
+                        fontSize: 'clamp(2.5rem, 8vw, 5.5rem)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.02em',
+                        marginBottom: '2rem',
+                        lineHeight: 0.9,
+                        fontFamily: 'var(--font-heading)',
+                        color: 'white'
+                    }}>
+                        Boutique <br />
+                        <span style={{ fontStyle: 'italic', fontWeight: '350', color: 'var(--brand-red)' }}>Discoveries</span>
+                    </h1>
 
-                        {/* Stats row */}
-                        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                            {[
-                                { label: 'Stores', value: mockStores.length, icon: '🏪' },
-                                { label: 'Coupons', value: totalCoupons, icon: '🎟️' },
-                                { label: 'Max Off', value: '60%', icon: '🔥', highlight: true },
-                            ].map(({ label, value, icon, highlight }) => (
-                                <div key={label} style={{
-                                    background: highlight ? '#FFCA28' : 'rgba(255,255,255,0.15)',
-                                    color: highlight ? '#BF360C' : 'white',
-                                    backdropFilter: highlight ? 'none' : 'blur(4px)',
-                                    borderRadius: 'var(--radius-md)',
-                                    padding: '0.5rem 0.6rem',
-                                    border: highlight ? 'none' : '1px solid rgba(255,255,255,0.25)',
-                                    flex: 1, minWidth: '70px', textAlign: 'center',
-                                    boxShadow: highlight ? '0 4px 12px rgba(255,202,40,0.3)' : 'none',
-                                }}>
-                                    <div style={{ fontSize: '1.1rem', marginBottom: '2px' }}>{icon}</div>
-                                    <div style={{ fontWeight: 800, fontSize: '1.1rem', fontFamily: 'var(--font-heading)', lineHeight: 1 }}>{value}</div>
-                                    <div style={{ fontSize: '0.65rem', opacity: highlight ? 1 : 0.85, marginTop: '2px', fontWeight: highlight ? 700 : 500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
-                                </div>
-                            ))}
+                    <p style={{
+                        maxWidth: '650px',
+                        margin: '0 auto 4rem',
+                        fontSize: isMobile ? '1rem' : '1.25rem',
+                        color: 'rgba(255,255,255,0.7)',
+                        lineHeight: 1.6,
+                        fontWeight: 300
+                    }}>
+                        Unlocking Mymensingh's most prestigious discounts. <br />
+                        Hand-selected for those who appreciate the finer things.
+                    </p>
+
+                    <div style={{
+                        display: 'flex',
+                        justifyContent: 'center',
+                        flexWrap: 'wrap',
+                        gap: isMobile ? '1.5rem 2rem' : '4rem',
+                        fontSize: '0.75rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.15em',
+                        fontWeight: 750
+                    }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                            <span style={{ fontSize: '1.5rem', color: 'var(--brand-red)' }}>{mockStores.length}</span>
+                            <span style={{ opacity: 0.6 }}>Stores</span>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                            <span style={{ fontSize: '1.5rem', color: 'var(--brand-red)' }}>{totalDeals}+</span>
+                            <span style={{ opacity: 0.6 }}>Offers</span>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                            <span style={{ fontSize: '1.5rem', color: 'var(--brand-red)' }}>60%</span>
+                            <span style={{ opacity: 0.6 }}>Max Off</span>
                         </div>
                     </div>
                 </div>
+            </section>
 
-                {/* Category + Sort Controls (sticky) */}
-                <div style={{ padding: '1.25rem 1.5rem 0.75rem', background: '#FFFFFF', borderBottom: '1px solid var(--border-color)', position: 'sticky', top: 0, zIndex: 10 }}>
-                    {/* Category pills */}
-                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'nowrap', overflowX: 'auto', paddingBottom: '0.5rem', marginBottom: '0.5rem' }}>
+            {/* ── Dynamic Search & Filters ── */}
+            <div className="glass" style={{
+                position: 'sticky',
+                top: isMobile ? '0' : '77px', // adjusted for navbar height
+                zIndex: 50,
+                padding: '1rem 0',
+                borderBottom: '1px solid var(--border-color)'
+            }}>
+                <div className="container" style={{
+                    display: 'flex',
+                    flexDirection: isMobile ? 'column' : 'row',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: isMobile ? '1rem' : '2.5rem'
+                }}>
+                    {/* Category Scroll */}
+                    <div style={{
+                        display: 'flex',
+                        gap: '1rem',
+                        overflowX: 'auto',
+                        width: isMobile ? '100%' : 'auto',
+                        paddingBottom: '2px',
+                        scrollbarWidth: 'none'
+                    }}>
                         {CATEGORIES.map(cat => (
                             <button
                                 key={cat.id}
                                 onClick={() => setActiveCategory(cat.id)}
                                 style={{
-                                    display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
-                                    padding: '0.45rem 1.1rem',
+                                    fontSize: '0.7rem',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.1em',
+                                    fontWeight: 700,
+                                    background: activeCategory === cat.id ? 'var(--brand-navy)' : 'white',
+                                    color: activeCategory === cat.id ? 'white' : 'var(--brand-navy)',
+                                    border: '1px solid',
+                                    borderColor: activeCategory === cat.id ? 'var(--brand-navy)' : 'rgba(26, 35, 126, 0.1)',
+                                    padding: '0.6rem 1.25rem',
                                     borderRadius: 'var(--radius-full)',
-                                    fontWeight: 700, fontSize: '0.85rem',
-                                    fontFamily: 'var(--font-heading)',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s cubic-bezier(0.34,1.56,0.64,1)',
-                                    border: activeCategory === cat.id ? '2px solid transparent' : '2px solid var(--border-color)',
-                                    background: activeCategory === cat.id ? 'linear-gradient(135deg, #1E3A8A, #1e40af)' : 'white',
-                                    color: activeCategory === cat.id ? 'white' : 'var(--text-muted)',
-                                    boxShadow: activeCategory === cat.id ? '0 4px 12px rgba(30,58,138,0.3)' : 'none',
-                                    transform: activeCategory === cat.id ? 'scale(1.03)' : 'scale(1)',
-                                    flexShrink: 0,
+                                    whiteSpace: 'nowrap',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem',
+                                    boxShadow: activeCategory === cat.id ? 'var(--shadow-navy)' : 'none'
                                 }}
                             >
-                                <span>{cat.icon}</span> {cat.label}
+                                <span>{cat.emoji}</span> {cat.label}
                             </button>
                         ))}
                     </div>
 
-                    {/* Sort row */}
-                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                        <button
-                            onClick={() => setShowFilters(f => !f)}
-                            style={{
-                                display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
-                                padding: '0.4rem 0.8rem', borderRadius: 'var(--radius-full)',
-                                fontSize: '0.8rem', fontWeight: 700, fontFamily: 'var(--font-heading)',
-                                border: '1.5px solid var(--border-color)',
-                                background: showFilters ? 'var(--accent-light)' : 'white',
-                                color: showFilters ? 'var(--accent-color)' : 'var(--text-main)',
-                                cursor: 'pointer',
-                            }}
-                        >
-                            <SlidersHorizontal size={14} /> Sort
-                        </button>
-                        {showFilters && SORT_OPTIONS.map(opt => (
-                            <button
-                                key={opt.value}
-                                onClick={() => setSortBy(opt.value)}
+                    <div style={{
+                        display: 'flex',
+                        gap: '1.5rem',
+                        alignItems: 'center',
+                        width: isMobile ? '100%' : 'auto',
+                        justifyContent: 'space-between'
+                    }}>
+                        {/* Inline Search */}
+                        <div style={{
+                            position: 'relative',
+                            flex: 1,
+                            minWidth: isMobile ? 'auto' : '280px',
+                            background: 'var(--primary-light)',
+                            borderRadius: 'var(--radius-md)',
+                            padding: '0.5rem 1rem',
+                            border: '1px solid rgba(26, 35, 126, 0.05)'
+                        }}>
+                            <input
+                                type="text"
+                                placeholder="Filter results..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
                                 style={{
-                                    padding: '0.4rem 0.8rem', borderRadius: 'var(--radius-full)',
-                                    fontSize: '0.8rem', fontWeight: 600, fontFamily: 'var(--font-body)',
-                                    border: sortBy === opt.value ? '2px solid var(--accent-color)' : '1.5px solid var(--border-color)',
-                                    background: sortBy === opt.value ? 'var(--accent-light)' : 'white',
-                                    color: sortBy === opt.value ? 'var(--accent-color)' : 'var(--text-muted)',
-                                    cursor: 'pointer', transition: 'all 0.2s',
+                                    width: '100%',
+                                    border: 'none',
+                                    background: 'transparent',
+                                    fontSize: '0.8rem',
+                                    outline: 'none',
+                                    color: 'var(--brand-navy)',
+                                    fontWeight: 500
                                 }}
-                            >
-                                {opt.label}
-                            </button>
-                        ))}
-                    </div>
+                            />
+                            <Search size={14} style={{ position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--brand-navy)', opacity: 0.5 }} />
+                        </div>
 
-                    <div style={{ marginTop: '0.75rem', fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 500 }}>
-                        <span style={{ color: 'var(--primary-color)', fontWeight: 800 }}>{filteredStores.length}</span> stores found matching criteria
+                        {/* View Switchers */}
+                        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', paddingLeft: '1rem', borderLeft: '1px solid var(--border-color)' }}>
+                            <button onClick={() => setViewMode('list')} style={{
+                                color: viewMode === 'list' ? 'var(--brand-red)' : 'var(--text-light)',
+                                background: viewMode === 'list' ? 'var(--accent-light)' : 'transparent',
+                                padding: '0.4rem', borderRadius: 'var(--radius-sm)'
+                            }}>
+                                <Grid size={18} strokeWidth={viewMode === 'list' ? 2.5 : 1.5} />
+                            </button>
+                            <button onClick={() => setViewMode('map')} style={{
+                                color: viewMode === 'map' ? 'var(--brand-red)' : 'var(--text-light)',
+                                background: viewMode === 'map' ? 'var(--accent-light)' : 'transparent',
+                                padding: '0.4rem', borderRadius: 'var(--radius-sm)'
+                            }}>
+                                <MapIcon size={18} strokeWidth={viewMode === 'map' ? 2.5 : 1.5} />
+                            </button>
+                        </div>
                     </div>
                 </div>
+            </div>
 
-                {/* Store Cards */}
-                <div style={{ padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', background: 'var(--bg-color)' }}>
-                    {filteredStores.map((store, i) => (
-                        <Link
-                            to={`/store/${store.id}`}
-                            key={store.id}
-                            className="card"
-                            style={{
-                                display: 'block',
-                                padding: '0',
-                                textDecoration: 'none',
-                                animation: `fadeInUp 0.4s ease-out ${i * 0.04}s both`,
-                                backgroundColor: 'white',
-                            }}
-                        >
-                            {/* Card Image */}
-                            <div style={{ position: 'relative', height: '150px', overflow: 'hidden' }}>
-                                <img
-                                    src={store.imageUrl}
-                                    alt={store.name}
-                                    style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.5s ease' }}
-                                    onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
-                                    onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
-                                />
-                                {/* Overlay gradient */}
-                                <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 50%)' }} />
+            {/* ── Main Display Area ── */}
+            <main className="container" style={{ paddingTop: isMobile ? '4rem' : '6rem', paddingBottom: isMobile ? '8rem' : '10rem' }}>
+                {viewMode === 'list' ? (
+                    <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(350px, 1fr))',
+                        gap: isMobile ? '3rem' : '6rem 3rem'
+                    }}>
+                        {filteredStores.map((store, i) => (
+                            <div key={store.id} className="animate-fade-in" style={{ animationDelay: `${i * 0.05}s` }}>
+                                <Link to={`/store/${store.id}`} style={{ display: 'block' }}>
+                                    <div style={{
+                                        position: 'relative',
+                                        aspectRatio: isMobile ? '16/9' : '16/7',
+                                        overflow: 'hidden',
+                                        borderRadius: 'var(--radius-lg)',
+                                        marginBottom: '1.25rem',
+                                        boxShadow: 'var(--shadow-md)',
+                                        background: 'var(--primary-light)',
+                                        group: 'true' // Logical group for hover effects
+                                    }} onMouseEnter={(e) => {
+                                        e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
+                                        e.currentTarget.querySelector('img').style.transform = 'scale(1.08)';
+                                    }}
+                                        onMouseLeave={(e) => {
+                                            e.currentTarget.style.boxShadow = 'var(--shadow-md)';
+                                            e.currentTarget.querySelector('img').style.transform = 'scale(1)';
+                                        }}>
+                                        <img
+                                            src={store.imageUrl}
+                                            alt={store.name}
+                                            style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.8s cubic-bezier(0.2, 0, 0, 1)' }}
+                                        />
 
-                                {/* Red Discount badge - Most prominent */}
-                                <div style={{ position: 'absolute', top: '0.75rem', right: '0.75rem' }}>
-                                    <span className="badge badge-discount" style={{ fontWeight: 800, fontSize: '0.9rem', padding: '0.4rem 0.8rem' }}>
-                                        {store.topDiscount}
-                                    </span>
-                                </div>
-                                {/* Category pill on image */}
-                                <div style={{ position: 'absolute', bottom: '0.75rem', left: '0.75rem', display: 'flex', gap: '0.4rem' }}>
-                                    {store.categories.slice(0, 2).map(c => (
-                                        <span key={c} style={{ background: 'white', color: 'var(--text-main)', fontSize: '0.7rem', fontWeight: 800, padding: '3px 10px', borderRadius: 'var(--radius-full)', fontFamily: 'var(--font-heading)', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>{c}</span>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Card Body */}
-                            <div style={{ padding: '1.25rem' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                    <div>
-                                        <h3 style={{ fontSize: '1.05rem', fontWeight: 800, marginBottom: '0.2rem', fontFamily: 'var(--font-heading)', color: 'var(--text-main)', letterSpacing: '-0.02em' }}>{store.name}</h3>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 500 }}>
-                                            <MapPin size={14} />
-                                            <span>{store.address.split(',')[0]}</span>
+                                        {/* Cinematic Scrim */}
+                                        <div style={{
+                                            position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                                            background: 'rgba(13, 27, 62, 0.3)',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            padding: '2rem'
+                                        }}>
+                                            <div className="glass" style={{
+                                                padding: '0.75rem 1.5rem',
+                                                borderRadius: 'var(--radius-md)',
+                                                textAlign: 'center',
+                                                border: '1px solid rgba(255,255,255,0.2)'
+                                            }}>
+                                                <h3 style={{
+                                                    fontSize: isMobile ? '1.2rem' : '1.8rem',
+                                                    color: 'var(--brand-navy)',
+                                                    fontWeight: 900,
+                                                    margin: 0,
+                                                    letterSpacing: '-0.01em',
+                                                    fontFamily: 'var(--font-heading)'
+                                                }}>
+                                                    {store.name}
+                                                </h3>
+                                            </div>
                                         </div>
-                                    </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', color: '#B45309', fontWeight: 800, fontSize: '0.875rem', flexShrink: 0, background: '#FEF3C7', padding: '4px 8px', borderRadius: 'var(--radius-full)', border: '1px solid #FDE68A' }}>
-                                        <Star size={14} fill="currentColor" />
-                                        {store.rating}
-                                    </div>
-                                </div>
 
-                                <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '2px dashed var(--border-color)' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: 'var(--secondary-color)' }}>
-                                                <Tag size={15} />
-                                                {store.activeDiscounts.length} Deals
-                                            </span>
-                                            {userLocation?.distances?.[store.id] != null && (
-                                                <span style={{ background: 'var(--accent-light)', color: 'var(--accent-color)', fontWeight: 800, fontSize: '0.8rem', padding: '3px 10px', borderRadius: 'var(--radius-full)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                    📍 {userLocation.distances[store.id] < 1
-                                                        ? `${Math.round(userLocation.distances[store.id] * 1000)} m`
-                                                        : `${userLocation.distances[store.id].toFixed(1)} km`}
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Action Buttons */}
-                                    <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
                                         <button
-                                            className="btn btn-outline"
-                                            onClick={(e) => handleMeasure(e, store)}
+                                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleFavorite(store.id); }}
                                             style={{
-                                                flex: 1, padding: '0.6rem', fontSize: '0.8rem',
-                                                border: measureStore?.id === store.id ? '2px solid var(--accent-color)' : '1.5px solid var(--border-color)',
-                                                background: measureStore?.id === store.id ? 'var(--accent-light)' : 'transparent',
-                                                color: measureStore?.id === store.id ? 'var(--accent-color)' : 'var(--text-main)',
+                                                position: 'absolute', top: '1rem', right: '1rem',
+                                                background: 'white', border: 'none', borderRadius: '50%',
+                                                width: '32px', height: '32px', display: 'flex',
+                                                alignItems: 'center', justifyContent: 'center',
+                                                boxShadow: 'var(--shadow-md)', cursor: 'pointer',
+                                                zIndex: 10,
+                                                color: isFavorite(store.id) ? 'var(--brand-red)' : 'var(--brand-navy)'
                                             }}
                                         >
-                                            📏 {measureStore?.id === store.id ? 'Clear Route' : 'Measure'}
+                                            <Heart size={16} fill={isFavorite(store.id) ? 'currentColor' : 'none'} />
                                         </button>
-                                        <button
-                                            className="btn btn-primary"
-                                            style={{ flex: 1.5, padding: '0.6rem', fontSize: '0.8rem' }}
-                                        >
-                                            View Details <ChevronRight size={14} />
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </Link>
-                    ))}
-                </div>
-            </div>
 
-            {/* ===== Google Map Panel ===== */}
-            <div style={{ flex: 1, position: 'relative', overflow: 'hidden', background: '#e5e3df' }}>
-                <StoreMap onUserLocation={handleUserLocation} measureStore={measureStore} onMeasureClear={() => setMeasureStore(null)} />
-            </div>
+                                        <div style={{
+                                            position: 'absolute',
+                                            bottom: '1rem',
+                                            left: '1rem',
+                                            background: 'var(--grad-brand)',
+                                            color: 'white',
+                                            padding: '0.4rem 0.8rem',
+                                            fontSize: '0.65rem',
+                                            fontWeight: 800,
+                                            borderRadius: 'var(--radius-sm)',
+                                            textTransform: 'uppercase',
+                                            letterSpacing: '0.1em',
+                                            boxShadow: 'var(--shadow-red)',
+                                            zIndex: 10
+                                        }}>
+                                            Up to {store.discountPercent}% OFF
+                                        </div>
+                                    </div>
+
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
+                                        <div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.7rem', color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                <MapPin size={10} color="var(--brand-red)" />
+                                                {store.address.split(',')[0]}
+                                                {userLocation?.distances?.[store.id] != null && (
+                                                    <span style={{ color: 'var(--brand-blue)', fontWeight: 600 }}>• {userLocation.distances[store.id].toFixed(1)} km</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div style={{
+                                            display: 'flex', alignItems: 'center', gap: '0.25rem',
+                                            fontSize: '0.85rem', fontWeight: 800, color: 'var(--brand-navy)',
+                                            background: 'var(--bg-alt)', padding: '0.2rem 0.5rem', borderRadius: 'var(--radius-sm)'
+                                        }}>
+                                            <Star size={14} fill="var(--brand-red)" color="transparent" /> {store.rating}
+                                        </div>
+                                    </div>
+
+                                    <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                        {store.tags.slice(0, 3).map(tag => (
+                                            <span key={tag} style={{
+                                                fontSize: '0.6rem', padding: '0.2rem 0.6rem',
+                                                background: 'var(--primary-light)', color: 'var(--brand-blue)',
+                                                borderRadius: 'var(--radius-full)', textTransform: 'uppercase',
+                                                fontWeight: 600, border: '1px solid rgba(26, 35, 126, 0.05)'
+                                            }}>
+                                                #{tag}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </Link>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div style={{
+                        height: '70vh', width: '100%',
+                        borderRadius: 'var(--radius-lg)', overflow: 'hidden',
+                        border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-lg)'
+                    }}>
+                        <StoreMap
+                            onUserLocation={(data) => setUserLocation(data)}
+                            searchQuery={searchQuery}
+                        />
+                    </div>
+                )}
+            </main>
         </div>
     );
 };
