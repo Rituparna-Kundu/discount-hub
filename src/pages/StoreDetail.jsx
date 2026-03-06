@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { MapPin, Star, Clock, Globe, Phone, ArrowLeft, Tag, Share2, Heart, ExternalLink, Gift, Copy, Check, Flame, RefreshCw } from 'lucide-react';
+import { MapPin, Star, Clock, Globe, Phone, ArrowLeft, Tag, Share2, Heart, ExternalLink, Gift, Copy, Check, Flame, RefreshCw, Navigation } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import { useWindowSize } from '../hooks/useWindowSize';
-import { useStores, isFresh, daysSinceUpdate } from '../hooks/useStores';
+import { useStores, isFresh, daysSinceUpdate, getDistanceKm } from '../hooks/useStores';
 
 const StoreDetail = () => {
     const { id } = useParams();
@@ -12,6 +12,9 @@ const StoreDetail = () => {
     const { stores, isLoading } = useStores();
     const store = stores.find(s => String(s.id) === String(id));
     const [copiedId, setCopiedId] = useState(null);
+    const { userLocation, setUserLocation } = useAppContext();
+    const [isLocating, setIsLocating] = useState(false);
+    const [locationError, setLocationError] = useState('');
 
     const handleCopy = (coupon, id) => {
         if (coupon === 'NONE') return;
@@ -29,7 +32,33 @@ const StoreDetail = () => {
         );
     }
 
+    const handleFindMe = () => {
+        if (!navigator.geolocation) {
+            setLocationError('Location not supported');
+            return;
+        }
+        setIsLocating(true);
+        setLocationError('');
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                const { latitude, longitude } = pos.coords;
+                setUserLocation({ lat: latitude, lng: longitude });
+                setIsLocating(false);
+            },
+            () => {
+                setLocationError('Access denied');
+                setIsLocating(false);
+            }
+        );
+    };
+
     const saved = isFavorite(store.id);
+    let distanceInfo = null;
+
+    if (userLocation && store) {
+        const dist = getDistanceKm(userLocation.lat, userLocation.lng, store.lat, store.lng);
+        distanceInfo = `${dist >= 1 ? dist.toFixed(1) + ' km' : Math.round(dist * 1000) + ' m'} away`;
+    }
 
     return (
         <div style={{ background: 'var(--bg-color)', minHeight: '100vh', paddingBottom: '10rem' }} className="animate-fade-in">
@@ -114,6 +143,23 @@ const StoreDetail = () => {
                         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '2.5rem' }}>
                             {[
                                 { Icon: MapPin, label: 'Location', value: store.address },
+                                {
+                                    Icon: Compass,
+                                    label: 'Distance',
+                                    value: distanceInfo ? distanceInfo : (
+                                        <button
+                                            onClick={handleFindMe}
+                                            disabled={isLocating}
+                                            style={{
+                                                background: 'none', border: 'none', cursor: 'pointer',
+                                                fontSize: '0.85rem', color: 'var(--brand-red)', fontWeight: 700,
+                                                display: 'flex', alignItems: 'center', gap: '0.4rem', padding: 0
+                                            }}>
+                                            {isLocating ? 'Locating...' : 'Calculate Distance'}
+                                            {locationError && <span style={{ fontSize: '0.65rem', color: 'gray', fontWeight: 500 }}>({locationError})</span>}
+                                        </button>
+                                    )
+                                },
                                 { Icon: Clock, label: 'Hours', value: store.openingHours },
                                 { Icon: Phone, label: 'Contact', value: store.phone },
                                 { Icon: Globe, label: 'Social', value: 'Official Page', href: store.facebookUrl },

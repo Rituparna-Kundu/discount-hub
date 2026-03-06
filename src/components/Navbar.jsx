@@ -272,6 +272,57 @@ const Navbar = ({ user, onLogin, onLogout }) => {
                     {NAV_ITEMS.map((item, idx) => {
                         const Icon = item.icon;
                         const active = item.to ? isActive(item.to) : false;
+
+                        // Mobile Account item with drop-up menu
+                        if (!item.to && user) {
+                            return (
+                                <div key={idx} style={{ position: 'relative' }} ref={profileMenuRef}>
+                                    <button
+                                        onClick={() => setShowProfileMenu(!showProfileMenu)}
+                                        style={{
+                                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem',
+                                            background: 'none', border: 'none', cursor: 'pointer',
+                                            color: 'var(--brand-navy)'
+                                        }}
+                                    >
+                                        <div style={{
+                                            width: '20px', height: '20px', borderRadius: '50%',
+                                            background: 'var(--brand-navy)', color: 'white',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            fontSize: '0.6rem', fontWeight: 800, marginBottom: '2px'
+                                        }}>
+                                            {user.name.charAt(0)}
+                                        </div>
+                                        <span style={{ fontSize: '0.6rem', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Account</span>
+                                    </button>
+
+                                    {/* Mobile Drop-up Menu */}
+                                    {showProfileMenu && (
+                                        <div className="glass" style={{
+                                            position: 'absolute', bottom: 'calc(100% + 15px)', right: -10,
+                                            padding: '0.5rem 0', width: '180px',
+                                            display: 'flex', flexDirection: 'column',
+                                            zIndex: 110, borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-lg)',
+                                            border: '1px solid rgba(255,255,255,0.3)',
+                                            transformOrigin: 'bottom right',
+                                            animation: 'slideUp 0.2s ease forwards'
+                                        }}>
+                                            <button onClick={() => { setShowProfileMenu(false); navigate('/favorites'); }} style={{ padding: '0.8rem 1.25rem', textAlign: 'left', fontSize: '0.75rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--brand-navy)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                                                <Heart size={16} /> Favorites
+                                            </button>
+                                            <button onClick={() => { setShowProfileMenu(false); setIsSettingsOpen(true); }} style={{ padding: '0.8rem 1.25rem', textAlign: 'left', fontSize: '0.75rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--brand-navy)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                                                <Settings size={16} /> Settings
+                                            </button>
+                                            <div style={{ height: '1px', background: 'var(--border-color)', margin: '0.4rem 0' }} />
+                                            <button onClick={() => { setShowProfileMenu(false); onLogout(); }} style={{ padding: '0.8rem 1.25rem', textAlign: 'left', fontSize: '0.75rem', fontWeight: 700, color: 'var(--brand-red)', display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'none', border: 'none', cursor: 'pointer' }}>
+                                                <LogOut size={16} /> Logout
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        }
+
                         const inner = (
                             <div style={{
                                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem',

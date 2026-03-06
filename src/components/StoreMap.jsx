@@ -146,15 +146,35 @@ const StoreMap = ({ stores = [], onUserLocation, measureStore, onMeasureClear, s
         );
     };
 
-    const filteredStores = stores.filter(store => {
-        const matchesSearch = !searchQuery ||
-            store.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (store.tags || []).some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
+    const filteredStores = React.useMemo(() => {
+        return stores.filter(store => {
+            const searchLower = (searchQuery || '').toLowerCase();
+            const matchesSearch = !searchQuery ||
+                store.name.toLowerCase().includes(searchLower) ||
+                (store.address && store.address.toLowerCase().includes(searchLower)) ||
+                (store.tags || []).some(t => t.toLowerCase().includes(searchLower));
 
-        const matchesDeals = !dealsOnly || store.discountPercent >= 50;
+            const matchesDeals = !dealsOnly || store.discountPercent >= 50;
 
-        return matchesSearch && matchesDeals;
-    });
+            return matchesSearch && matchesDeals;
+        });
+    }, [stores, searchQuery, dealsOnly]);
+
+    useEffect(() => {
+        if (!map || !searchQuery || filteredStores.length === 0) return;
+
+        const bounds = new window.google.maps.LatLngBounds();
+        filteredStores.forEach(store => {
+            bounds.extend({ lat: store.lat, lng: store.lng });
+        });
+
+        if (filteredStores.length === 1) {
+            map.setCenter({ lat: filteredStores[0].lat, lng: filteredStores[0].lng });
+            map.setZoom(16);
+        } else {
+            map.fitBounds(bounds, 100);
+        }
+    }, [map, searchQuery, filteredStores]);
 
     const getMarkerColor = (percent) => {
         if (percent >= 70) return '#E53935'; // Urgent Red
@@ -200,7 +220,7 @@ const StoreMap = ({ stores = [], onUserLocation, measureStore, onMeasureClear, s
                                 strokeWeight: fresh ? 4 : 2,
                                 strokeColor: fresh ? '#4299E1' : '#FFFFFF', // Blue stroke for fresh deals
                                 scale: size / 36,
-                                labelOrigin: new window.google.maps.Point(0, -3),
+                                labelOrigin: window.google ? new window.google.maps.Point(0, -3) : null,
                             }}
                             label={{
                                 text: `${store.discountPercent}%`,
@@ -217,7 +237,7 @@ const StoreMap = ({ stores = [], onUserLocation, measureStore, onMeasureClear, s
                         position={userLocation}
                         zIndex={100}
                         icon={{
-                            path: window.google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+                            path: window.google ? window.google.maps.SymbolPath.FORWARD_CLOSED_ARROW : '',
                             fillColor: '#4299E1', // Vibrant Blue for User
                             fillOpacity: 1,
                             strokeWeight: 2,
@@ -232,87 +252,104 @@ const StoreMap = ({ stores = [], onUserLocation, measureStore, onMeasureClear, s
                         position={{ lat: selectedStore.lat, lng: selectedStore.lng }}
                         onCloseClick={() => setSelectedStore(null)}
                     >
-                        <div style={{
-                            padding: '0.25rem',
-                            maxWidth: '280px',
-                            background: 'white',
-                            color: 'var(--brand-navy)',
-                            fontFamily: 'var(--font-body)',
-                            borderRadius: '16px',
-                            overflow: 'hidden'
-                        }}>
-                            <div style={{ position: 'relative', height: '140px', borderRadius: '12px', overflow: 'hidden', marginBottom: '1rem' }}>
-                                <img
-                                    src={selectedStore.imageUrl}
-                                    alt={selectedStore.name}
-                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                />
+                        {(() => {
+                            let distanceText = null;
+                            if (userLocation) {
+                                const dist = getDistanceKm(userLocation.lat, userLocation.lng, selectedStore.lat, selectedStore.lng);
+                                distanceText = `${dist >= 1 ? dist.toFixed(1) + ' km' : Math.round(dist * 1000) + ' m'} away`;
+                            }
+
+                            return (
                                 <div style={{
-                                    position: 'absolute', top: '0.75rem', left: '0.75rem',
-                                    background: getMarkerColor(selectedStore.discountPercent), color: 'white',
-                                    padding: '0.4rem 0.8rem', fontSize: '0.7rem', fontWeight: 900,
-                                    borderRadius: '8px', textTransform: 'uppercase', boxShadow: 'var(--shadow-red)'
+                                    padding: '0.25rem',
+                                    maxWidth: '280px',
+                                    background: 'white',
+                                    color: 'var(--brand-navy)',
+                                    fontFamily: 'var(--font-body)',
+                                    borderRadius: '16px',
+                                    overflow: 'hidden'
                                 }}>
-                                    {selectedStore.discountPercent}% OFF
-                                </div>
+                                    <div style={{ position: 'relative', height: '140px', borderRadius: '12px', overflow: 'hidden', marginBottom: '1rem' }}>
+                                        <img
+                                            src={selectedStore.imageUrl}
+                                            alt={selectedStore.name}
+                                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                        />
+                                        <div style={{
+                                            position: 'absolute', top: '0.75rem', left: '0.75rem',
+                                            background: getMarkerColor(selectedStore.discountPercent), color: 'white',
+                                            padding: '0.4rem 0.8rem', fontSize: '0.7rem', fontWeight: 900,
+                                            borderRadius: '8px', textTransform: 'uppercase', boxShadow: 'var(--shadow-red)'
+                                        }}>
+                                            {selectedStore.discountPercent}% OFF
+                                        </div>
 
-                                {isFreshStore(selectedStore) && (
-                                    <div style={{
-                                        position: 'absolute', top: '0.75rem', right: '0.75rem',
-                                        background: '#4299E1', color: 'white',
-                                        padding: '0.4rem 0.6rem', fontSize: '0.6rem', fontWeight: 900,
-                                        borderRadius: '8px', textTransform: 'uppercase',
-                                        display: 'flex', alignItems: 'center', gap: '0.3rem',
-                                        boxShadow: '0 4px 12px rgba(66, 153, 225, 0.3)'
-                                    }}>
-                                        <Zap size={10} fill="white" /> Just Updated
+                                        {isFreshStore(selectedStore) && (
+                                            <div style={{
+                                                position: 'absolute', top: '0.75rem', right: '0.75rem',
+                                                background: '#4299E1', color: 'white',
+                                                padding: '0.4rem 0.6rem', fontSize: '0.6rem', fontWeight: 900,
+                                                borderRadius: '8px', textTransform: 'uppercase',
+                                                display: 'flex', alignItems: 'center', gap: '0.3rem',
+                                                boxShadow: '0 4px 12px rgba(66, 153, 225, 0.3)'
+                                            }}>
+                                                <Zap size={10} fill="white" /> Just Updated
+                                            </div>
+                                        )}
                                     </div>
-                                )}
-                            </div>
 
-                            <div style={{ padding: '0 0.75rem 0.75rem' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
-                                    <Zap size={12} color={getMarkerColor(selectedStore.discountPercent)} fill={getMarkerColor(selectedStore.discountPercent)} />
-                                    <span style={{ fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: '0.15em', fontWeight: 850, color: getMarkerColor(selectedStore.discountPercent) }}>
-                                        Verified Boutique
-                                    </span>
+                                    <div style={{ padding: '0 0.75rem 0.75rem' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
+                                            <Zap size={12} color={getMarkerColor(selectedStore.discountPercent)} fill={getMarkerColor(selectedStore.discountPercent)} />
+                                            <span style={{ fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: '0.15em', fontWeight: 850, color: getMarkerColor(selectedStore.discountPercent) }}>
+                                                Verified Boutique
+                                            </span>
+                                        </div>
+
+                                        <h3 style={{ fontSize: '1.4rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '0.25rem', lineHeight: 1, color: 'var(--brand-navy)' }}>
+                                            {selectedStore.name}
+                                        </h3>
+                                        <p style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginBottom: distanceText ? '0.25rem' : '1.25rem', fontWeight: 500 }}>
+                                            {selectedStore.address.split(',')[0]}
+                                        </p>
+
+                                        {distanceText && (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', marginBottom: '1.25rem', color: 'var(--brand-red)' }}>
+                                                <Navigation size={12} fill="currentColor" />
+                                                <span style={{ fontSize: '0.7rem', fontWeight: 700 }}>{distanceText}</span>
+                                            </div>
+                                        )}
+
+                                        <button
+                                            onClick={() => navigate(`/store/${selectedStore.id}`)}
+                                            style={{
+                                                width: '100%',
+                                                padding: '0.9rem',
+                                                background: 'var(--brand-navy)',
+                                                color: 'white',
+                                                border: 'none',
+                                                fontSize: '0.75rem',
+                                                textTransform: 'uppercase',
+                                                letterSpacing: '0.15em',
+                                                fontWeight: 850,
+                                                cursor: 'pointer',
+                                                borderRadius: '12px',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                gap: '0.5rem',
+                                                boxShadow: 'var(--shadow-navy)',
+                                                transition: 'all 0.2s ease'
+                                            }}
+                                            onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+                                            onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                                        >
+                                            Explore Deals <ChevronRight size={16} />
+                                        </button>
+                                    </div>
                                 </div>
-
-                                <h3 style={{ fontSize: '1.4rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '0.25rem', lineHeight: 1, color: 'var(--brand-navy)' }}>
-                                    {selectedStore.name}
-                                </h3>
-                                <p style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginBottom: '1.25rem', fontWeight: 500 }}>
-                                    {selectedStore.address.split(',')[0]}
-                                </p>
-
-                                <button
-                                    onClick={() => navigate(`/store/${selectedStore.id}`)}
-                                    style={{
-                                        width: '100%',
-                                        padding: '0.9rem',
-                                        background: 'var(--brand-navy)',
-                                        color: 'white',
-                                        border: 'none',
-                                        fontSize: '0.75rem',
-                                        textTransform: 'uppercase',
-                                        letterSpacing: '0.15em',
-                                        fontWeight: 850,
-                                        cursor: 'pointer',
-                                        borderRadius: '12px',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        gap: '0.5rem',
-                                        boxShadow: 'var(--shadow-navy)',
-                                        transition: 'all 0.2s ease'
-                                    }}
-                                    onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
-                                    onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
-                                >
-                                    Explore Deals <ChevronRight size={16} />
-                                </button>
-                            </div>
-                        </div>
+                            );
+                        })()}
                     </InfoWindow>
                 )}
             </Map>
